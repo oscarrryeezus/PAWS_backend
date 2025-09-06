@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Nuevo Usuario</title>
+</head>
+<body>
+  <h1>Registrar Usuario</h1>
+  <form action="/usuarios/nuevo" method="POST">
+    <label>Nombre:</label>
+    <input type="text" name="nombre" required><br>
+    <label>Email:</label>
+    <input type="email" name="email" required><br>
+    <label>Password:</label>
+    <input type="password" name="password" required><br>
+    <label>Rol:</label>
+    <select name="rol" required>
+      <option value="admin">Admin</option>
+      <option value="editor">Editor</option>
+      <option value="lector">Lector</option>
+    </select><br>
+    <button type="submit">Crear Usuario</button>
+  </form>
+  <a href="/usuarios">Volver a la lista</a>
+</body>
+</html>

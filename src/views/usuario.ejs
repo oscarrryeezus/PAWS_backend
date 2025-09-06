@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Lista de Usuarios</title>
+</head>
+<body>
+  <h1>Usuarios</h1>
+  <a href="/usuarios/nuevo">Registrar Nuevo Usuario</a>
+  <table border="1">
+    <tr>
+      <th>ID</th>
+      <th>Nombre</th>
+      <th>Email</th>
+      <th>Rol</th>
+    </tr>
+    <% usuarios.forEach(usuario => { %>
+      <tr>
+        <td><%= usuario.id %></td>
+        <td><%= usuario.nombre %></td>
+        <td><%= usuario.email %></td>
+        <td><%= usuario.rol %></td>
+      </tr>
+    <% }) %>
+  </table>
+</body>
+</html>
