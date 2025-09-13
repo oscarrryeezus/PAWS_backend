@@ -36,7 +36,7 @@ exports.registrarUsuario = async (req, res) => {
       str_pass: hash,
       int_rol: 1, // ? Por defecto sin permisos de admin
       int_pin: null,
-      str_tokenOTP: null,
+      str_tokenOTP: "PENDIENTE",
       bool_OTP: false,
       bool_pin: false,
       dt_ultimoAcceso: new Date(),
