@@ -25,9 +25,12 @@ const usuarioController = require("../controllers/usuario_controller");
  *         bool_activo:
  *           type: boolean
  *           description: Estado de activación del usuario
- *         bool_2FA:
+ *         str_tokenOTP:
+ *           type: string
+ *           description: Token OTP del usuario
+ *         bool_OTP:
  *           type: boolean
- *           description: Estado de autenticación de dos factores
+ *           description: Estado de autenticación OTP (One-Time Password)
  *         dt_ultimoAcceso:
  *           type: string
  *           format: date-time

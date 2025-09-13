@@ -9,9 +9,10 @@ class Usuario {
     str_pass,
     int_rol,
     int_pin,
+    str_tokenOTP,
     dt_ultimoAcceso,
     bool_activo,
-    bool_2FA,
+    bool_OTP,
     bool_pin,
   }) {
     this.id_usuario = id_usuario;
@@ -20,7 +21,8 @@ class Usuario {
     this.str_pass = str_pass;
     this.int_rol = int_rol;
     this.int_pin = int_pin;
-    this.bool_2FA = bool_2FA;
+    this.str_tokenOTP = str_tokenOTP;
+    this.bool_OTP = bool_OTP;
     this.bool_pin = bool_pin;
     this.dt_ultimoAcceso = dt_ultimoAcceso;
     this.bool_activo = bool_activo;
@@ -29,8 +31,8 @@ class Usuario {
   // * Método para guardar el usuario en la base de datos
   async guardar() {
     const query = `
-      INSERT INTO usuario (str_nombre, str_correo, str_pass, int_rol, int_pin, bool_2FA, bool_pin, dt_ultimoAcceso, bool_activo)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO usuario (str_nombre, str_correo, str_pass, int_rol, int_pin, str_tokenOTP, bool_OTP, bool_pin, dt_ultimoAcceso, bool_activo)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id_usuario
     `;
 
@@ -40,7 +42,8 @@ class Usuario {
       this.str_pass,
       this.int_rol,
       this.int_pin,
-      this.bool_2FA,
+      this.str_tokenOTP,
+      this.bool_OTP,
       this.bool_pin,
       this.dt_ultimoAcceso,
       this.bool_activo,
