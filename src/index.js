@@ -23,6 +23,19 @@ class Server {
   configurarMiddlewares() {
     this.app.use(bodyParser.urlencoded({ extended: true }));
     this.app.use(bodyParser.json());
+    // ? Middleware para manejar errores de parseo JSON
+    // ? Esto es una validación extra para capturar errores de JSON mal formateado por si las dudas
+    this.app.use((err, req, res, next) => {
+      if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "El formato del JSON es inválido. Verifica que no haya caracteres prohibidos o comillas.",
+          });
+      }
+      next(err);
+    });
   }
 
   configurarRutas() {
