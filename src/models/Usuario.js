@@ -68,6 +68,57 @@ class Usuario {
       throw new Error(`Error al buscar usuario: ${error.message}`);
     }
   }
+
+  // * Método estático para buscar usuario por ID
+  static async buscarPorId(id) {
+    const query = "SELECT * FROM usuario WHERE id_usuario = $1";
+    try {
+      const result = await pool.query(query, [id]);
+      return result.rows[0] || null;
+    } catch (error) {
+      throw new Error(`Error al buscar usuario: ${error.message}`);
+    }
+  }
+
+  // * Método para activar cuenta y habilitar OTP
+  async activarCuentaYOTP() {
+    const query = `
+      UPDATE usuario 
+      SET bool_OTP = TRUE, dt_ultimoAcceso = NOW()
+      WHERE id_usuario = $1
+      RETURNING *
+    `;
+    try {
+      const result = await pool.query(query, [this.id_usuario]);
+      if (result.rows.length > 0) {
+        // ? Actualizar propiedades del objeto
+        this.bool_OTP = true;
+        this.dt_ultimoAcceso = result.rows[0].dt_ultimoAcceso;
+      }
+      return result.rows[0] || null;
+    } catch (error) {
+      throw new Error(`Error al activar cuenta: ${error.message}`);
+    }
+  }
+
+  // * Método para actualizar token OTP
+  async actualizarTokenOTP(nuevoToken) {
+    const query = `
+      UPDATE usuario 
+      SET str_tokenOTP = $1
+      WHERE id_usuario = $2
+      RETURNING *
+    `;
+    try {
+      const result = await pool.query(query, [nuevoToken, this.id_usuario]);
+      if (result.rows.length > 0) {
+        this.str_tokenOTP = nuevoToken;
+      }
+      return result.rows[0] || null;
+    } catch (error) {
+      throw new Error(`Error al actualizar token OTP: ${error.message}`);
+    }
+  }
 }
 
 module.exports = Usuario;
