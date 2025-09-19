@@ -3,6 +3,8 @@ const path = require("path");
 const bodyParser = require("body-parser");
 const usuarioRoutes = require("./routes/usuario_routes");
 const pingRoutes = require("./routes/ping_routes");
+const loginRoutes = require("../src/routes/login_routes")
+const restablecerPassword = require("../src/routes/reestablecer_password_routes")
 require("dotenv").config();
 
 class Server {
@@ -39,9 +41,11 @@ class Server {
   }
 
   configurarRutas() {
-    // Rutas
+    // ? Rutas
     this.app.use("/ping", pingRoutes);
     this.app.use("/usuarios", usuarioRoutes);
+    this.app.use("/login", loginRoutes)
+    this.app.use("/restablecerPassword", restablecerPassword)
   }
 
   configurarSwagger() {
@@ -51,12 +55,12 @@ class Server {
 
   iniciar() {
     this.app.listen(this.PORT, () => {
-      console.log(`🚀 Servidor corriendo en http://localhost:${this.PORT}`);
+      console.log(`Servidor corriendo en http://localhost:${this.PORT}`);
       console.log(
-        `📄 Documentación Swagger disponible en http://localhost:${this.PORT}/docs`
+        `Documentación Swagger disponible en http://localhost:${this.PORT}/docs`
       );
       console.log(
-        `👥 Gestión de usuarios disponible en http://localhost:${this.PORT}/usuarios`
+        `Gestión de usuarios disponible en http://localhost:${this.PORT}/usuarios`
       );
     });
   }

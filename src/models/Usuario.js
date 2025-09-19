@@ -58,6 +58,33 @@ class Usuario {
     }
   }
 
+  static async traerTodoAlv() {
+    const query = "SELECT * FROM usuario"
+    try {
+      const result = await pool.query(query);
+      return result.rows || null;
+    } catch (error) {
+      throw new Error(`Error al buscar usuario: ${error.message}`);
+    }
+  }
+
+  // * Metodo para actualizar el ultimo acceso del usuarios
+  static async actualizarAcceso(id_usuario) {
+    const query = `
+      UPDATE usuario 
+      SET dt_ultimoAcceso = NOW()
+      WHERE id_usuario = $1
+      RETURNING *
+    `;
+
+    try {
+      const result = await pool.query(query, [id_usuario]);
+      return result.rows[0] || null; 
+    } catch (error) {
+      throw new Error(`Error al actualizar el acceso: ${error.message}`);
+    }
+  }
+
   // * Método estático para buscar usuario por email
   static async buscarPorEmail(email) {
     const query = "SELECT * FROM usuario WHERE str_correo = $1";
@@ -119,6 +146,22 @@ class Usuario {
       throw new Error(`Error al actualizar token OTP: ${error.message}`);
     }
   }
+
+  // * Metodo para Actualizar la contraseña una vez validado el codigo 
+  static async actualizarPassword(correo, nuevaPass) {
+  const query = `
+    UPDATE usuario
+    SET str_pass = $1
+    WHERE str_correo = $2
+    RETURNING *
+  `;
+  try {
+    const result = await pool.query(query, [nuevaPass, correo]);
+    return result.rows[0] || null;
+  } catch (error) {
+    throw new Error(`Error al actualizar contraseña: ${error.message}`);
+  }
+}
 }
 
 module.exports = Usuario;

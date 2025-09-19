@@ -6,7 +6,11 @@ const OTPService = require("../services/otp_service");
 const EmailService = require("../services/email_service");
 const cacheService = require("../services/cache_service");
 const emailVerificationService = require("../services/email_verification_service");
+const { loginSchema } = require("../validators/login_validator");
+const jwt = require('jsonwebtoken');
+const { solicitarRecuperacionPasswordSchema, reestablecerPasswordSchema } = require("../validators/recuperar_password_validator");
 require("dotenv").config();
+
 
 exports.registrarUsuario = async (req, res) => {
   // ? Validar el body
@@ -256,3 +260,181 @@ exports.verificarOTP = async (req, res) => {
     res.status(500).json({ error: "Error al completar el registro" });
   }
 };
+
+exports.login = async (req, res) => {
+
+  try {
+    // ? Validar entrada con JOI
+    const { error, value } = loginSchema.validate(req.body)
+    if (error) {
+      return res.status(400).json({
+        error: error.details[0].message,
+        errores: error.details.map((d) => d.message)
+      });
+    }
+
+    const { str_correo, str_pass } = value;
+
+    // ? Verificar que se envíen todos los datos
+    if (!str_correo || !str_pass) {
+      return res.status(400).json({ error: "Correo y contraseña son requeridos" });
+    }
+
+    // ? Buscar usuario en la base de datos
+    const usuario = await Usuario.buscarPorEmail(str_correo);
+    const usuarios = await Usuario.traerTodoAlv()
+    console.log(usuarios)
+    if (!usuario) {
+      return res.status(401).json({ error: "Correo o contraseña incorrectos {usuario}" })
+    };
+
+    // ? Comparar contraseña 
+    const secret = process.env.JWT_SECRET;
+    const contrasenaValida = await bcrypt.compare(str_pass + secret, usuario.str_pass);
+    console.log(contrasenaValida)
+    console.log("Contraseña ingresada: ", str_pass + secret)
+    console.log("Contraseña guardada: ", usuario.str_pass)
+
+    if (!contrasenaValida) {
+      return res.status(401).json({ error: "Correo o contraseña incorrectos {Password}" })
+    };
+
+    // ? Validar que la cuenta este activa
+    if (!usuario.bool_activo) {
+      await res.status(403).json({
+        error: "La cuenta no está activa. Verifica tu email y OTP"
+      })
+    };
+
+    // ? Generar JWT
+    const token = jwt.sign({
+      id: usuario.id_usuario,
+      correo: usuario.str_correo,
+      rol: usuario.int_rol
+    }, secret,
+      { expiresIn: "2h" }
+    );
+
+    // ? Actualizar ultimo acceso
+    await Usuario.actualizarAcceso(usuario.id_usuario)
+
+    // ? Respuesta con token
+    res.status(200).json({
+      mensaje: "Inicio de sesión exitoso",
+      token,
+      usuario: {
+        nombre: usuario.str_nombre,
+        correo: usuario.str_correo,
+        ultimo_acceso: usuario.dt_ultimoAcceso,
+      }
+    })
+  } catch (error) {
+    console.error("Error al iniciar sesión: ", error);
+    res.status(500).json({ error: "Error al iniciar sesíon" })
+  }
+}
+
+exports.solicitarRecuperacionPassword = async (req, res) => {
+  try {
+    // ? Validar entrada con JOI
+    const { error, value } = solicitarRecuperacionPasswordSchema.validate(req.body)
+    if (error) {
+      return res.status(400).json({
+        error: error.details[0].message,
+        errores: error.details.map((d) => d.message)
+      });
+    }
+
+    const { str_correo } = value;
+
+    if (!str_correo) {
+      return res.status(400).json({ error: "El correo es obligatorio" })
+    }
+
+    // ? Verificar que el usuario exista
+    const usuario = await Usuario.buscarPorEmail(str_correo)
+    if (!usuario) {
+      return res.status(404).json({ error: "No existe cuenta con ese correo" })
+    }
+
+    // ? Generar código de 6 digitos
+    const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // ? Guardar en cache (correo -> código)
+    cacheService.set(str_correo, { codigo });
+
+    // ? Enviar correo
+    const email_service = new EmailService();
+    await email_service.enviarCodigoVerificacion(
+      str_correo,
+      usuario.str_nombre,
+      codigo
+    );
+
+    console.log({"Codigo": codigo})
+
+    // ? Mandar respuesta matona
+    res.status(200).json({
+      mensaje: "Se ha enviado un código de verificación a tu correo",
+      correo: str_correo,
+      tiempo_expiracion: "15 minutos",
+      siguiente_paso: "Usar /usuarios/reestablecer-password con correo, código y nueva contraseña"
+    });
+
+  } catch (error) {
+    console.error("Error en solicitarRecuperacionPassword:", error);
+    res.status(500).json({ error: "Error al solicitar recuperación de contraseña" });
+  }
+}
+
+exports.restablecerPassword = async (req, res) => {
+  try {
+    // ? Validar entrada con JOI
+    const { error, value } = reestablecerPasswordSchema.validate(req.body)
+    if (error) {
+      return res.status(400).json({
+        error: error.details[0].message,
+        errores: error.details.map((d) => d.message)
+      });
+    }
+
+    const { str_correo, codigo, nueva_pass } = value;
+
+    if (!str_correo || !codigo || !nueva_pass) {
+      return res.status(400).json({ error: "Correo, código y nueva contraseña son requeridos" });
+    }
+
+    // ? Buscar codigo en cache
+    const datosCache = cacheService.get(str_correo);
+    if (!datosCache) {
+      return res.status(400).json({ error: "Codigo expirado o no solicitado" });
+    }
+
+    // ? Verificar codigo
+    if (datosCache.codigo !== codigo) {
+      return res.status(400).json({ error: "Código inválido" });
+    }
+
+    // ? Encriptar la contraseña 
+    const salt = await bcrypt.genSalt(10);
+    const secret = process.env.JWT_SECRET;
+    const hash = await bcrypt.hash(nueva_pass + secret, salt)
+
+    // ? Actualizar contraseña en BD
+    const result = await Usuario.actualizarPassword(str_correo, hash);
+    if (!result) {
+      return res.status(500).json({ error: "No se pudo actualizar la contraseña" })
+    }
+
+    // ? Eliminar cache
+    cacheService.delete(str_correo);
+
+    res.status(200).json({
+      mensaje: "Contraseña reestablecida exitosamente. Ya puedes iniciar sesión con la nueva contraseña."
+    });
+
+  } catch (error) {
+    console.error("Error en reestablecerPassword:", error);
+    res.status(500).json({ error: "Error al reestablecer contraseña" });
+  }
+}
