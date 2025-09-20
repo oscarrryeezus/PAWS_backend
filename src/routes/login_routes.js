@@ -27,8 +27,8 @@ const usuarioController = require("../controllers/usuario_controller");
  * @swagger
  * /login:
  *   post:
- *     summary: Inicia sesión en el sistema
- *     description: Valida correo y contraseña contra la base de datos. Si son correctos, genera un token JWT.
+ *     summary: Inicia sesión en el sistema y envía código OTP al correo
+ *     description: Valida correo y contraseña. Si son correctos, envía un código OTP al correo y devuelve un mensaje.
  *     tags: [Usuarios]
  *     requestBody:
  *       required: true
@@ -38,7 +38,7 @@ const usuarioController = require("../controllers/usuario_controller");
  *             $ref: '#/components/schemas/LoginUsuario'
  *     responses:
  *       200:
- *         description: Inicio de sesión exitoso
+ *         description: Código OTP enviado al correo
  *         content:
  *           application/json:
  *             schema:
@@ -46,34 +46,12 @@ const usuarioController = require("../controllers/usuario_controller");
  *               properties:
  *                 mensaje:
  *                   type: string
- *                   example: "Inicio de sesión exitoso"
- *                 token:
+ *                   example: "Código enviado con éxito a su correo. Favor de verificar su bandeja de entrada"
+ *                 correo:
  *                   type: string
- *                   description: Token JWT válido por 2 horas
- *                 usuario:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: integer
- *                       example: 1
- *                     nombre:
- *                       type: string
- *                       example: "Juan Pérez"
- *                     correo:
- *                       type: string
- *                       example: "juan@ejemplo.com"
- *                     rol:
- *                       type: integer
- *                       example: 1
- *                     otp_habilitado:
- *                       type: boolean
- *                       example: true
- *                     ultimo_acceso:
- *                       type: string
- *                       format: date-time
- *                       example: "2025-09-17T15:30:00Z"
+ *                   example: "juan@ejemplo.com"
  *       400:
- *         description: Error de validación en correo o contraseña
+ *         description: Error de validación
  *         content:
  *           application/json:
  *             schema:
@@ -84,35 +62,76 @@ const usuarioController = require("../controllers/usuario_controller");
  *                   example: "El correo es obligatorio"
  *       401:
  *         description: Credenciales incorrectas
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "Correo o contraseña incorrectos"
  *       403:
  *         description: Cuenta inactiva
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "La cuenta no está activa. Verifica tu correo y OTP."
  *       500:
  *         description: Error interno del servidor
+ */
+router.post("/", usuarioController.login);
+
+/**
+ * @swagger
+ * /login/validar-otp:
+ *   post:
+ *     summary: Valida el código OTP enviado al correo y genera JWT
+ *     description: Permite completar el login usando el código OTP recibido por correo.
+ *     tags: [Usuarios]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - str_correo
+ *               - codigo
+ *             properties:
+ *               str_correo:
+ *                 type: string
+ *                 format: email
+ *                 example: "juan@ejemplo.com"
+ *               codigo:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Código correcto, login completado
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 error:
+ *                 mensaje:
  *                   type: string
- *                   example: "Error interno al iniciar sesión"
+ *                   example: "Código correcto"
+ *                 token:
+ *                   type: string
+ *                   example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                 usuario:
+ *                   type: object
+ *                   properties:
+ *                     nombre:
+ *                       type: string
+ *                       example: "Juan Pérez"
+ *                     correo:
+ *                       type: string
+ *                       example: "juan@ejemplo.com"
+ *                     rol:
+ *                       type: integer
+ *                       example: 1
+ *                     ip:
+ *                       type: string
+ *                       example: "::1"
+ *                     ubicacion:
+ *                       type: string
+ *                       example: "Ubicación no disponible"
+ *       400:
+ *         description: Código inválido o expirado
+ *       401:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error interno del servidor
  */
-router.post("/", usuarioController.login);
+router.post("/validar-otp", usuarioController.validarLoginOTP);
 
 module.exports = router;

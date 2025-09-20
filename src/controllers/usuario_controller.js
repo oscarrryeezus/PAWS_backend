@@ -6,8 +6,9 @@ const OTPService = require("../services/otp_service");
 const EmailService = require("../services/email_service");
 const cacheService = require("../services/cache_service");
 const emailVerificationService = require("../services/email_verification_service");
-const { loginSchema } = require("../validators/login_validator");
+const { loginSchema, otpLoginVerifierSchema } = require("../validators/login_validator");
 const jwt = require('jsonwebtoken');
+const geoip = require("geoip-lite");
 const { solicitarRecuperacionPasswordSchema, reestablecerPasswordSchema } = require("../validators/recuperar_password_validator");
 require("dotenv").config();
 
@@ -262,10 +263,84 @@ exports.verificarOTP = async (req, res) => {
 };
 
 exports.login = async (req, res) => {
+  try {
+    const { error, value } = loginSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        error: error.details[0].message,
+        errores: error.details.map((d) => d.message),
+      });
+    }
+
+    const { str_correo, str_pass } = value;
+
+    if (!str_correo || !str_pass) {
+      return res
+        .status(200)
+        .json({ error: "Correo y contraseña son requeridos" });
+    }
+
+    const usuario = await Usuario.buscarPorEmail(str_correo);
+    if (!usuario) {
+      return res
+        .status(200)
+        .json({ error: "El usuario no existe" });
+    }
+
+    // ? Comparar contraseñas
+    const secret = process.env.JWT_SECRET;
+    const contrasenaValida = await bcrypt.compare(
+      str_pass + secret,
+      usuario.str_pass
+    );
+    
+    if (!contrasenaValida) {
+      return res
+        .status(200)
+        .json({ error: "Correo o contraseña incorrectos {Password}" });
+    }
+
+    if (!usuario.bool_activo) {
+      return res.status(403).json({
+        error: "La cuenta no está activa. Verifica tu email y OTP",
+      });
+    }
+
+    // ? Generar código de 6 digitos
+    const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // ? Guardar en cache (correo -> código)
+    cacheService.set(str_correo + "LOGIN", { codigo });
+
+    // ? Enviar correo
+    const email_service = new EmailService();
+    // await email_service.enviarCodigoVerificacion(
+    //   str_correo,
+    //   usuario.str_nombre,
+    //   codigo
+    // );
+
+    // ? Obtener IP y geolocalización
+    // const ip =
+    //   req.headers["x-forwarded-for"]?.split(",")[0] || 
+    //   req.connection.remoteAddress;
+    // const geo = geoip.lookup(ip);
+
+    res.status(200).json({
+      mensaje: "Codigo enviado con exito a su correo. Favor de verificar su bandeja de entrada",
+      codigo: codigo
+    });
+  } catch (error) {
+    console.error("Error al iniciar sesión: ", error);
+    res.status(500).json({ error: "Error al iniciar sesión" });
+  }
+};
+
+exports.validarLoginOTP = async (req, res) => {
 
   try {
     // ? Validar entrada con JOI
-    const { error, value } = loginSchema.validate(req.body)
+    const { error, value } = otpLoginVerifierSchema.validate(req.body)
     if (error) {
       return res.status(400).json({
         error: error.details[0].message,
@@ -273,64 +348,60 @@ exports.login = async (req, res) => {
       });
     }
 
-    const { str_correo, str_pass } = value;
+    const { str_correo, codigo } = value;
 
-    // ? Verificar que se envíen todos los datos
-    if (!str_correo || !str_pass) {
-      return res.status(400).json({ error: "Correo y contraseña son requeridos" });
+    if (!str_correo || !codigo ) {
+      return res.status(400).json({ error: "Correo, código y nueva contraseña son requeridos" });
     }
 
-    // ? Buscar usuario en la base de datos
     const usuario = await Usuario.buscarPorEmail(str_correo);
-    const usuarios = await Usuario.traerTodoAlv()
-    console.log(usuarios)
     if (!usuario) {
-      return res.status(401).json({ error: "Correo o contraseña incorrectos {usuario}" })
-    };
+      return res
+        .status(401)
+        .json({ error: "El usuario no existe" });
+    }
 
-    // ? Comparar contraseña 
-    const secret = process.env.JWT_SECRET;
-    const contrasenaValida = await bcrypt.compare(str_pass + secret, usuario.str_pass);
-    console.log(contrasenaValida)
-    console.log("Contraseña ingresada: ", str_pass + secret)
-    console.log("Contraseña guardada: ", usuario.str_pass)
+    // ? Buscar codigo en cache
+    const datosCache = cacheService.get(str_correo + "LOGIN");
+    if (!datosCache) {
+      return res.status(200).json({ error: "Codigo expirado o no solicitado", codigo: 1  });
+    }
 
-    if (!contrasenaValida) {
-      return res.status(401).json({ error: "Correo o contraseña incorrectos {Password}" })
-    };
+    // ? Verificar codigo
+    if (datosCache.codigo !== codigo) {
+      return res.status(400).json({ error: "Código inválido" });
+    }
 
-    // ? Validar que la cuenta este activa
-    if (!usuario.bool_activo) {
-      await res.status(403).json({
-        error: "La cuenta no está activa. Verifica tu email y OTP"
-      })
-    };
+
 
     // ? Generar JWT
-    const token = jwt.sign({
-      id: usuario.id_usuario,
-      correo: usuario.str_correo,
-      rol: usuario.int_rol
-    }, secret,
+    const secret = process.env.JWT_SECRET;
+    const token = jwt.sign(
+      {
+        id: usuario.id_usuario,
+        correo: usuario.str_correo,
+        rol: usuario.int_rol,
+      },
+      secret,
       { expiresIn: "2h" }
     );
 
-    // ? Actualizar ultimo acceso
-    await Usuario.actualizarAcceso(usuario.id_usuario)
+    await Usuario.actualizarAcceso(usuario.id_usuario);
 
-    // ? Respuesta con token
-    res.status(200).json({
-      mensaje: "Inicio de sesión exitoso",
+    cacheService.delete(str_correo + "LOGIN")
+
+    return res.status(200).json({
+      mensage: "Codigo correcto",
       token,
-      usuario: {
-        nombre: usuario.str_nombre,
+      user: {
         correo: usuario.str_correo,
-        ultimo_acceso: usuario.dt_ultimoAcceso,
-      }
+        nombre: usuario.str_nombre,
+      },
     })
+    
   } catch (error) {
-    console.error("Error al iniciar sesión: ", error);
-    res.status(500).json({ error: "Error al iniciar sesíon" })
+    console.error("Error en verificar otp de login:", error);
+    res.status(500).json({ error: "Error al verificar el otp de login" });
   }
 }
 
@@ -371,7 +442,7 @@ exports.solicitarRecuperacionPassword = async (req, res) => {
       codigo
     );
 
-    console.log({"Codigo": codigo})
+    console.log({ "Codigo": codigo })
 
     // ? Mandar respuesta matona
     res.status(200).json({

@@ -24,6 +24,28 @@ const loginSchema = Joi.object({
       "string.pattern.base":
         "La contraseña debe incluir letras, números y al menos un carácter especial",
     }),
-});
+}).unknown(false);
 
-module.exports = { loginSchema }
+// * Esquema para login (solo correo + contraseña)
+const otpLoginVerifierSchema = Joi.object({
+  str_correo: Joi.string().email().max(30).required().messages({
+    "string.base": "El correo debe ser una cadena de texto",
+    "string.empty": "El correo es obligatorio",
+    "any.required": "El correo es obligatorio",
+    "string.max": "El correo no puede exceder los 30 caracteres",
+    "string.email": "El correo debe tener un formato válido",
+  }),
+  codigo: Joi.string()
+    .length(6)
+    .pattern(/^\d{6}$/)
+    .required()
+    .messages({
+      "string.base": "El código debe ser una cadena de texto",
+      "string.empty": "El código es obligatorio",
+      "any.required": "El código es obligatorio",
+      "string.length": "El código debe tener exactamente 6 dígitos",
+      "string.pattern.base": "El código debe contener solo números",
+    }),
+}).unknown(false);
+
+module.exports = { loginSchema, otpLoginVerifierSchema }
