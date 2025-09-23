@@ -475,6 +475,14 @@ exports.restablecerPassword = async (req, res) => {
       return res.status(400).json({ error: "Correo, código y nueva contraseña son requeridos" });
     }
 
+    // ? Verificar que el usuario exista 
+    const usuario = await Usuario.buscarPorEmail(str_correo);
+    if (!usuario) {
+      return res
+        .status(200)
+        .json({ error: "El usuario no existe" });
+    }
+    
     // ? Buscar codigo en cache
     const datosCache = cacheService.get(str_correo);
     if (!datosCache) {
