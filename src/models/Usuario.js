@@ -58,16 +58,6 @@ class Usuario {
     }
   }
 
-  static async traerTodoAlv() {
-    const query = "SELECT * FROM usuario"
-    try {
-      const result = await pool.query(query);
-      return result.rows || null;
-    } catch (error) {
-      throw new Error(`Error al buscar usuario: ${error.message}`);
-    }
-  }
-
   // * Metodo para actualizar el ultimo acceso del usuarios
   static async actualizarAcceso(id_usuario) {
     const query = `
@@ -79,7 +69,7 @@ class Usuario {
 
     try {
       const result = await pool.query(query, [id_usuario]);
-      return result.rows[0] || null; 
+      return result.rows[0] || null;
     } catch (error) {
       throw new Error(`Error al actualizar el acceso: ${error.message}`);
     }
@@ -149,19 +139,36 @@ class Usuario {
 
   // * Metodo para Actualizar la contraseña una vez validado el codigo 
   static async actualizarPassword(correo, nuevaPass) {
-  const query = `
+    const query = `
     UPDATE usuario
     SET str_pass = $1
     WHERE str_correo = $2
     RETURNING *
   `;
-  try {
-    const result = await pool.query(query, [nuevaPass, correo]);
-    return result.rows[0] || null;
-  } catch (error) {
-    throw new Error(`Error al actualizar contraseña: ${error.message}`);
+    try {
+      const result = await pool.query(query, [nuevaPass, correo]);
+      return result.rows[0] || null;
+    } catch (error) {
+      throw new Error(`Error al actualizar contraseña: ${error.message}`);
+    }
   }
-}
+
+  // * Metodo para actualizar la ubicacion cuando un usuario inicia sesion
+  static async actualizarGeolocalizacion (correo, str_ubicacion){
+    const query = `
+      UPDATE usuario 
+      SET str_ubicacion = $1
+      WHERE str_correo = $2
+      RETURNING *
+    `;
+
+    try {
+      const result = await pool.query(query, [str_ubicacion, correo]);
+      return result.rows[0] || null
+    } catch (error) {
+      throw new Error(`Error al actualizar str_ubicacion: ${error.message}`);
+    }
+  }
 }
 
 module.exports = Usuario;

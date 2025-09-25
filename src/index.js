@@ -5,6 +5,7 @@ const usuarioRoutes = require("./routes/usuario_routes");
 const pingRoutes = require("./routes/ping_routes");
 const loginRoutes = require("../src/routes/login_routes")
 const restablecerPassword = require("../src/routes/reestablecer_password_routes")
+const cors = require('cors')
 
 const ip = require('./routes/ip')
 
@@ -28,6 +29,16 @@ class Server {
   configurarMiddlewares() {
     this.app.use(bodyParser.urlencoded({ extended: true }));
     this.app.use(bodyParser.json());
+
+    // ? Configuracion de cors PERMITE PETICIONES DE CUALQUIER IP
+    this.app.use(cors({
+      origin: "*",
+      methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+    }));
+
+    this.app.options("*", cors());
+
     // ? Middleware para manejar errores de parseo JSON
     // ? Esto es una validación extra para capturar errores de JSON mal formateado por si las dudas
     this.app.use((err, req, res, next) => {

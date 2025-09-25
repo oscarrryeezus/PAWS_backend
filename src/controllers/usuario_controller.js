@@ -10,6 +10,7 @@ const { loginSchema, otpLoginVerifierSchema } = require("../validators/login_val
 const jwt = require('jsonwebtoken');
 const geoip = require("geoip-lite");
 const { solicitarRecuperacionPasswordSchema, reestablecerPasswordSchema } = require("../validators/recuperar_password_validator");
+const Geolocalización = require("../services/geolocalizacion_service");
 require("dotenv").config();
 
 
@@ -287,13 +288,13 @@ exports.login = async (req, res) => {
         .json({ error: "El usuario no existe" });
     }
 
-    // ? Comparar contraseñas
+    // ? Comparar contraseñas 
     const secret = process.env.JWT_SECRET;
     const contrasenaValida = await bcrypt.compare(
       str_pass + secret,
       usuario.str_pass
     );
-    
+
     if (!contrasenaValida) {
       return res
         .status(200)
@@ -314,21 +315,20 @@ exports.login = async (req, res) => {
 
     // ? Enviar correo
     const email_service = new EmailService();
-    // await email_service.enviarCodigoVerificacion(
-    //   str_correo,
-    //   usuario.str_nombre,
-    //   codigo
-    // );
+    await email_service.enviarCodigoVerificacion(
+      str_correo,
+      usuario.str_nombre,
+      codigo
+    );
 
     // ? Obtener IP y geolocalización
-    // const ip =
-    //   req.headers["x-forwarded-for"]?.split(",")[0] || 
-    //   req.connection.remoteAddress;
-    // const geo = geoip.lookup(ip);
+    const res_geo = await Geolocalización.obtenerGeolocalizacion();
+    const { location } = res_geo
+    await Usuario.actualizarGeolocalizacion(str_correo, JSON.stringify(location))
 
     res.status(200).json({
       mensaje: "Codigo enviado con exito a su correo. Favor de verificar su bandeja de entrada",
-      codigo: codigo
+      codigo: codigo,
     });
   } catch (error) {
     console.error("Error al iniciar sesión: ", error);
@@ -350,7 +350,7 @@ exports.validarLoginOTP = async (req, res) => {
 
     const { str_correo, codigo } = value;
 
-    if (!str_correo || !codigo ) {
+    if (!str_correo || !codigo) {
       return res.status(400).json({ error: "Correo, código y nueva contraseña son requeridos" });
     }
 
@@ -364,7 +364,7 @@ exports.validarLoginOTP = async (req, res) => {
     // ? Buscar codigo en cache
     const datosCache = cacheService.get(str_correo + "LOGIN");
     if (!datosCache) {
-      return res.status(200).json({ error: "Codigo expirado o no solicitado", codigo: 1  });
+      return res.status(200).json({ error: "Codigo expirado o no solicitado", codigo: 1 });
     }
 
     // ? Verificar codigo
@@ -398,7 +398,7 @@ exports.validarLoginOTP = async (req, res) => {
         nombre: usuario.str_nombre,
       },
     })
-    
+
   } catch (error) {
     console.error("Error en verificar otp de login:", error);
     res.status(500).json({ error: "Error al verificar el otp de login" });
@@ -482,7 +482,7 @@ exports.restablecerPassword = async (req, res) => {
         .status(200)
         .json({ error: "El usuario no existe" });
     }
-    
+
     // ? Buscar codigo en cache
     const datosCache = cacheService.get(str_correo);
     if (!datosCache) {
