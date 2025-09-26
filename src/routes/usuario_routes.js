@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const usuarioController = require("../controllers/usuario_controller");
-
+const auth = require("../middlewares/auth"); // ← auth middleware
 
 /**
  * @swagger
@@ -308,15 +308,50 @@ router.post("/verificar-email", usuarioController.verificarEmail);
  */
 router.post("/verificar-otp", usuarioController.verificarOTP);
 
+// Rutas One Time Pin
+
 /**
  * @swagger
- * /usuarios/set-pin:
+ * /usuarios/configurar-pin:
  *   post:
- *     summary: Configura un PIN de un solo uso para el usuario
- *     description: Permite que el usuario configure un PIN que será válido por 30 días.
+ *     summary: Configura un PIN de un solo uso
+ *     description: Configura un PIN que expira en 30 días y se invalida después del primer uso
  *     tags: [Usuarios]
  *     security:
- *       - bearerAuth: []   # si usas JWT, si no, quítalo
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - pin
+ *               - codigo_otp
+ *             properties:
+ *               pin:
+ *                 type: string
+ *                 pattern: '^[0-9]{4,6}$'
+ *                 example: "123456"
+ *               codigo_otp:
+ *                 type: string
+ *                 pattern: '^[0-9]{6}$'
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: PIN configurado exitosamente
+ */
+router.post("/configurar-pin", auth, usuarioController.configurarPin); // ← Middleware aquí
+
+/**
+ * @swagger
+ * /usuarios/verificar-pin:
+ *   post:
+ *     summary: Verifica y utiliza un PIN de un solo uso
+ *     description: Verifica el PIN y lo invalida inmediatamente después del uso
+ *     tags: [Usuarios]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -331,22 +366,22 @@ router.post("/verificar-otp", usuarioController.verificarOTP);
  *                 example: "123456"
  *     responses:
  *       200:
- *         description: PIN configurado correctamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 msg:
- *                   type: string
- *                   example: "PIN configurado con éxito, válido por 30 días"
- *       400:
- *         description: Error de validación
- *       404:
- *         description: Usuario no encontrado
- *       500:
- *         description: Error interno del servidor
+ *         description: PIN verificado y invalidado exitosamente
  */
-router.post("/set-pin", usuarioController.setOneTimePin);
+router.post("/verificar-pin", auth, usuarioController.verificarPin); // ← Middleware aquí
+
+/**
+ * @swagger
+ * /usuarios/estado-pin:
+ *   get:
+ *     summary: Obtiene el estado actual del PIN
+ *     tags: [Usuarios]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Estado del PIN obtenido exitosamente
+ */
+router.get("/estado-pin", auth, usuarioController.obtenerEstadoPin); // ← Middleware aquí
 
 module.exports = router;

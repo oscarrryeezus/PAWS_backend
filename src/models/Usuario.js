@@ -162,6 +162,99 @@ class Usuario {
     throw new Error(`Error al actualizar contraseña: ${error.message}`);
   }
 }
+
+// Pin Un Solo Uso
+// * Método para configurar el PIN
+static async configurarPin(userId, pinEncriptado) {
+  const query = `
+    UPDATE usuario 
+    SET one_time_pin = $1, 
+        pin_expires_at = NOW() + INTERVAL '30 days',
+        pin_used = FALSE,
+        pin_created_at = NOW(),
+        bool_pin = TRUE
+    WHERE id_usuario = $2
+    RETURNING *
+  `;
+  
+  try {
+    const result = await pool.query(query, [pinEncriptado, userId]);
+    return result.rows[0] || null;
+  } catch (error) {
+    throw new Error(`Error al configurar PIN: ${error.message}`);
+  }
 }
 
+// * Método para invalidar PIN después de uso
+static async invalidarPin(userId) {
+  const query = `
+    UPDATE usuario 
+    SET one_time_pin = NULL, 
+        pin_expires_at = NULL,
+        pin_used = TRUE,
+        bool_pin = FALSE
+    WHERE id_usuario = $1
+    RETURNING *
+  `;
+  
+  try {
+    const result = await pool.query(query, [userId]);
+    return result.rows[0] || null;
+  } catch (error) {
+    throw new Error(`Error al invalidar PIN: ${error.message}`);
+  }
+}
+
+// * Método para verificar PIN
+static async verificarPin(userId, pin) {
+  const query = `
+    SELECT one_time_pin, pin_expires_at, pin_used 
+    FROM usuario 
+    WHERE id_usuario = $1
+  `;
+  
+  try {
+    const result = await pool.query(query, [userId]);
+    const user = result.rows[0];
+    
+    if (!user || !user.one_time_pin) {
+      return { valido: false, motivo: 'PIN no configurado' };
+    }
+    
+    if (user.pin_used) {
+      return { valido: false, motivo: 'PIN ya fue utilizado' };
+    }
+    
+    if (new Date() > new Date(user.pin_expires_at)) {
+      return { valido: false, motivo: 'PIN expirado' };
+    }
+    
+    // Verificar el PIN con bcrypt
+    const esValido = await bcrypt.compare(pin, user.one_time_pin);
+    return { 
+      valido: esValido, 
+      motivo: esValido ? 'PIN válido' : 'PIN incorrecto' 
+    };
+    
+  } catch (error) {
+    throw new Error(`Error al verificar PIN: ${error.message}`);
+  }
+}
+
+// * Método para obtener información del PIN
+static async obtenerInfoPin(userId) {
+  const query = `
+    SELECT pin_expires_at, pin_used, pin_created_at, bool_pin
+    FROM usuario 
+    WHERE id_usuario = $1
+  `;
+  
+  try {
+    const result = await pool.query(query, [userId]);
+    return result.rows[0] || null;
+  } catch (error) {
+    throw new Error(`Error al obtener información del PIN: ${error.message}`);
+  }
+}
+}
 module.exports = Usuario;

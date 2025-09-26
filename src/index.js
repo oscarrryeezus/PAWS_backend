@@ -6,7 +6,6 @@ const pingRoutes = require("./routes/ping_routes");
 const loginRoutes = require("../src/routes/login_routes")
 const restablecerPassword = require("../src/routes/reestablecer_password_routes")
 require("dotenv").config();
-
 class Server {
   constructor() {
     this.app = express();
@@ -46,6 +45,7 @@ class Server {
     this.app.use("/usuarios", usuarioRoutes);
     this.app.use("/login", loginRoutes)
     this.app.use("/restablecerPassword", restablecerPassword)
+    this.app.use("/set-pin", usuarioRoutes); // Ruta para configurar PIN
   }
 
   configurarSwagger() {

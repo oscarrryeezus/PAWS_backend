@@ -191,24 +191,119 @@ exports.crearUsuario = async (req, res) => {
 };
 
 //Pin de un solo uso
-exports.setOneTimePin = async (req, res) => {
+// En usuario_controller.js - reemplaza el método setOneTimePin:
+exports.configurarPin = async (req, res) => {
   try {
-    const { pin } = req.body;
-    const userId = req.user.id; // viene del token JWT
+    // Validar entrada
+    const { error, value } = require("../validators/pin_validator").configurarPinSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
 
-    const user = await Usuario.findById(userId);
-    if (!user) return res.status(404).json({ msg: "Usuario no encontrado" });
+    const { pin, codigo_otp } = value;
+    const userId = req.user.id;
+    const userEmail = req.user.email; // Asumiendo que tienes el email en el token
 
+    // 1. Verificar código OTP primero
+    const usuario = await Usuario.buscarPorId(userId);
+    if (!usuario) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Verificar OTP (necesitas implementar esta función)
+    const otpValido = OTPService.verificarCodigo(usuario.str_tokenOTP, codigo_otp);
+    if (!otpValido) {
+      return res.status(400).json({ error: "Código OTP inválido" });
+    }
+
+    // 2. Encriptar el PIN
     const salt = await bcrypt.genSalt(10);
     const hashedPin = await bcrypt.hash(pin, salt);
 
-    user.oneTimePin = hashedPin;
-    user.pinExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    await user.save();
+    // 3. Guardar en base de datos
+    await Usuario.configurarPin(userId, hashedPin);
 
-    res.json({ msg: "PIN configurado con éxito, válido por 30 días" });
+    // 4. Preparar respuesta con información de expiración
+    const pinInfo = await Usuario.obtenerInfoPin(userId);
+    
+    res.status(200).json({
+      mensaje: "PIN configurado exitosamente",
+      detalles: {
+        expiracion: pinInfo.pin_expires_at,
+        vigencia: "30 días desde la configuración",
+        instrucciones: "El PIN se invalidará automáticamente después del primer uso o al expirar"
+      }
+    });
+
   } catch (error) {
-    res.status(500).json({ msg: "Error del servidor" });
+    console.error("Error al configurar PIN:", error);
+    res.status(500).json({ error: "Error del servidor al configurar PIN" });
+  }
+};
+
+// * Método para verificar y usar el PIN
+exports.verificarPin = async (req, res) => {
+  try {
+    const { error, value } = require("../validators/pin_validator").verificarPinSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    const { pin } = value;
+    const userId = req.user.id;
+
+    // Verificar el PIN
+    const resultado = await Usuario.verificarPin(userId, pin);
+
+    if (!resultado.valido) {
+      return res.status(400).json({ 
+        error: `PIN inválido: ${resultado.motivo}` 
+      });
+    }
+
+    // PIN válido - invalidarlo inmediatamente
+    await Usuario.invalidarPin(userId);
+
+    res.json({
+      mensaje: "PIN verificado exitosamente",
+      acceso: "Permitido",
+      nota: "El PIN ha sido invalidado y no podrá ser usado nuevamente"
+    });
+
+  } catch (error) {
+    console.error("Error al verificar PIN:", error);
+    res.status(500).json({ error: "Error del servidor al verificar PIN" });
+  }
+};
+
+// * Método para obtener estado del PIN
+exports.obtenerEstadoPin = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const pinInfo = await Usuario.obtenerInfoPin(userId);
+
+    if (!pinInfo || !pinInfo.pin_expires_at) {
+      return res.json({ 
+        estado: "No configurado",
+        mensaje: "No hay PIN configurado para este usuario" 
+      });
+    }
+
+    const ahora = new Date();
+    const expiracion = new Date(pinInfo.pin_expires_at);
+    const expirado = ahora > expiracion;
+
+    res.json({
+      estado: pinInfo.pin_used ? "Utilizado" : expirado ? "Expirado" : "Activo",
+      configurado: pinInfo.pin_created_at,
+      expira: pinInfo.pin_expires_at,
+      utilizado: pinInfo.pin_used,
+      dias_restantes: expirado ? 0 : Math.ceil((expiracion - ahora) / (1000 * 60 * 60 * 24))
+    });
+
+  } catch (error) {
+    console.error("Error al obtener estado del PIN:", error);
+    res.status(500).json({ error: "Error del servidor" });
   }
 };
 
