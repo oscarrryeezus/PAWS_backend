@@ -189,3 +189,26 @@ exports.crearUsuario = async (req, res) => {
     res.status(500).send("Error al crear usuario");
   }
 };
+
+//Pin de un solo uso
+exports.setOneTimePin = async (req, res) => {
+  try {
+    const { pin } = req.body;
+    const userId = req.user.id; // viene del token JWT
+
+    const user = await Usuario.findById(userId);
+    if (!user) return res.status(404).json({ msg: "Usuario no encontrado" });
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPin = await bcrypt.hash(pin, salt);
+
+    user.oneTimePin = hashedPin;
+    user.pinExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    await user.save();
+
+    res.json({ msg: "PIN configurado con éxito, válido por 30 días" });
+  } catch (error) {
+    res.status(500).json({ msg: "Error del servidor" });
+  }
+};
+

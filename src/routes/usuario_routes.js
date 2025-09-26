@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const usuarioController = require("../controllers/usuario_controller");
 
+
 /**
  * @swagger
  * components:
@@ -306,5 +307,46 @@ router.post("/verificar-email", usuarioController.verificarEmail);
  *                   example: "Error al completar el registro"
  */
 router.post("/verificar-otp", usuarioController.verificarOTP);
+
+/**
+ * @swagger
+ * /usuarios/set-pin:
+ *   post:
+ *     summary: Configura un PIN de un solo uso para el usuario
+ *     description: Permite que el usuario configure un PIN que será válido por 30 días.
+ *     tags: [Usuarios]
+ *     security:
+ *       - bearerAuth: []   # si usas JWT, si no, quítalo
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - pin
+ *             properties:
+ *               pin:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: PIN configurado correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msg:
+ *                   type: string
+ *                   example: "PIN configurado con éxito, válido por 30 días"
+ *       400:
+ *         description: Error de validación
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post("/set-pin", usuarioController.setOneTimePin);
 
 module.exports = router;
