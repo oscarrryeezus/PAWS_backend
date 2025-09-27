@@ -1,3 +1,4 @@
+const { query } = require("express-validator");
 const pool = require("../config/db");
 const bcrypt = require("bcryptjs");
 
@@ -167,6 +168,22 @@ class Usuario {
       return result.rows[0] || null
     } catch (error) {
       throw new Error(`Error al actualizar str_ubicacion: ${error.message}`);
+    }
+  }
+
+  // * Metodo para activar o desactivar la sesión
+  static async actualizarSesion (bool_activo, str_correo){
+    const query = `
+      UPDATE usuario 
+      SET bool_activo = $1
+      WHERE str_correo = $2
+      RETURNING *
+    `
+    try {
+      const result = await pool.query(query, [bool_activo, str_correo])
+      return result.rows[0] || null
+    } catch (error) {
+      throw new Error(`Error al actualizar el estado de la cuenta del usuario: ${error.message}`)
     }
   }
 }
