@@ -13,9 +13,13 @@ const swaggerOptions = {
       {
         url: "http://localhost:" + process.env.PORT,
       },
+      {
+        url: "http://172.31.3.30:" + process.env.PORT,
+        description: "Servidor en red local",
+      },
     ],
   },
-  apis: ["./src/routes/*.js"], // Aquí estarán tus rutas documentadas
+  apis: ["./src/routes/*.js"],
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
