@@ -80,6 +80,25 @@ class CacheService {
       entries: Array.from(this.cache.keys()),
     };
   }
+
+  /**
+   * Lista todas las entradas del cache con tiempo restante en minutos
+   */
+  list() {
+    const ahora = Date.now();
+    const result = [];
+
+    for (const [key, value] of this.cache.entries()) {
+      const restanteMs = value.expiresAt - ahora;
+      result.push({
+        key,
+        data: value.data,
+        minutosRestantes: restanteMs > 0 ? Math.ceil(restanteMs / 60000) : 0,
+      });
+    }
+
+    return result;
+  }
 }
 
 // Singleton para usar en toda la aplicación

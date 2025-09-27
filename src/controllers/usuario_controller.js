@@ -295,16 +295,31 @@ exports.login = async (req, res) => {
       usuario.str_pass
     );
 
+    // ? Contraseña no valida 
     if (!contrasenaValida) {
       return res
         .status(200)
         .json({ error: "Correo o contraseña incorrectos {Password}" });
     }
 
-    if (!usuario.bool_activo) {
-      return res.status(403).json({
-        error: "La cuenta no está activa. Verifica tu email y OTP",
-      });
+    if (usuario.bool_activo) {
+      const ahora = Date.now(); // timestamp actual en ms
+      const fecha_sesion = cacheService.get(str_correo + "EXPIRACION-SESION");
+
+      if (fecha_sesion) {
+        const tiempoRestanteMs = fecha_sesion - ahora;
+
+        if (tiempoRestanteMs > 0) {
+          const minutos = Math.floor(tiempoRestanteMs / 60000);
+          const segundos = Math.floor((tiempoRestanteMs % 60000) / 1000);
+
+          return res.status(200).json({
+            error: "Ya existe una sesion activa.",
+            codigo: 1,
+            Expiracion: `${minutos} min ${segundos} seg`,
+          });
+        }
+      }
     }
 
     // ? Generar código de 6 digitos
@@ -372,8 +387,6 @@ exports.validarLoginOTP = async (req, res) => {
       return res.status(400).json({ error: "Código inválido" });
     }
 
-
-
     // ? Generar JWT
     const secret = process.env.JWT_SECRET;
     const token = jwt.sign(
@@ -383,21 +396,36 @@ exports.validarLoginOTP = async (req, res) => {
         rol: usuario.int_rol,
       },
       secret,
-      { expiresIn: "2h" }
+      { expiresIn: "5m" }
     );
 
     await Usuario.actualizarAcceso(usuario.id_usuario);
 
     cacheService.delete(str_correo + "LOGIN")
 
+    await Usuario.actualizarSesion('true', str_correo)
+
+    const ahora = Date.now();
+    const duracionSesion = 5 * 60 * 1000; // 5 minutos
+
+    // ? Guardamos el tiempo exacto en que expira la sesión
+    const expiracionSesion = ahora + duracionSesion;
+    cacheService.set(str_correo + "EXPIRACION-SESION", expiracionSesion);
+
+    // ? Calcular minutos y segundos para la respuesta
+    const minutos = Math.floor(duracionSesion / 60000);
+    const segundos = Math.floor((duracionSesion % 60000) / 1000);
+
     return res.status(200).json({
-      mensage: "Codigo correcto",
+      mensaje: "Codigo correcto",
       token,
       user: {
         correo: usuario.str_correo,
         nombre: usuario.str_nombre,
       },
-    })
+      Expiracion: `${minutos} min ${segundos} seg`,
+    });
+
 
   } catch (error) {
     console.error("Error en verificar otp de login:", error);
